@@ -1,0 +1,218 @@
+---
+title: "GLM-practice"
+author: "Lexi"
+date: "9/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(ggfortify)
+library(arm)
+```
+
+#### <span style="color:blue"> Below we will practice finding best fit GLMs on two different datasets. The first data set is from my thesis work and includes the total length (mm) and sex of fin clipped Kentucky Arrow Darters. The second dataset is from Dryad and focuses on the chemistry of acid mine drainage in freshwater ecosystems of New Zealand. </span> ####
+
+
+
+##### <span style="color:green"> Kentucky Arrow Darter Data </span> #####
+
+
+
+<span style="color:green"> **Our first GLM practice run will be on the Kentucky Arrow Darter data set, comparing fish sex to total length (mm). ** </span>
+
+
+![A male Kentucky Arrow Darter that is approximately 75 mm in length (Left) and a female Kentucky Arrow Darter that is approximately 65mm in length (Right) Photos provided by Matt Thomas KFWS.](/Users/alexisculley/Desktop/Analytics/assignment1glm/GLM-Practice/images/kad_lady_and_man.jpg)
+
+<span style="color:green"> **First let's upload the dataset.** </span>
+
+```{r Import Dataset}
+kad_tissue_data <- read.csv("~/Desktop/Analytics/assignment1glm/GLM-Practice/data/kad_tl_data.csv")
+```
+
+
+<span style="color:green"> **Convert categorical Male and Female data to binary data (0 and 1)** </span>
+
+```{r Converting M and F to binary data}
+kad_tissue_data$sex_binary <- factor(kad_tissue_data$sex, levels=c("M", "F"), labels = c(0,1))
+```
+
+<span style="color:green"> **Now change that factor data to interger** </span>
+```{r Converting factor data to interger data}
+str(kad_tissue_data)
+kad_tissue_data$num_sex_binary<-as.numeric(as.character(kad_tissue_data$sex_binary))
+```
+
+<span style="color:green"> **Let's plot the data on a box and whisker plot to see if there are any obvious trends** </span>
+```{r Boxplot}
+ggplot(kad_tissue_data, aes(sex,tl_mm)) +
+  geom_boxplot(color="blue", fill="green4", alpha=0.2) +
+  geom_jitter(height = 0, width = .15)+
+  xlab ("Sex") +
+  ylab ("Total Length (mm)") +
+  labs(title="Influence of Kentucky Arrow Darter Sex on Total Length (mm)")
+
+```
+
+
+<span style="color:green"> **As we can see, males had a higher mean total length than females. This suggests that males may be typically bigger than females.** </span>
+
+<span style="color:green"> **We need to now find a proper GLM for our dataset** </span>
+
+#### <span style="color:green"> Poisson </span> ####
+
+
+```{r Poisson}
+pois1 <- glm(tl_mm~num_sex_binary, family= poisson(link=log), data= kad_tissue_data)
+summary(pois1)
+```
+<span style="color:green"> **the degrees of freedom and residual deviance are not similar, suggesting this model is not best fit** </span>
+
+<span style="color:green"> **Let's try another GLM** </span>
+
+
+#### <span style="color:green"> Binomial Distribution </span> ####
+
+
+<span style="color:green"> **Let's check to see if binomial distribution fits** </span>
+
+```{r Binomial Distribution check}
+binom1 <- glm(sex_binary~tl_mm, family= binomial, data= kad_tissue_data)
+summary(binom1)
+```
+<span style="color:green"> **So it's not a perfect fit, but better than poisson.** </span>
+
+```{r Plain linear plot, eval=FALSE, include=FALSE}
+ggplot(kad_tissue_data,aes(tl_mm, num_sex_binary)) +
+  geom_point() +
+  geom_smooth() +
+  xlab ("Total Length in mm") +
+  ylab ("Probability of being Male or Female") +
+  labs(title="Raw Fit: 1=Female, 0=Male")
+
+##this does not show 
+```
+
+<span style="color:green"> **This is an autoplot to help us understand if it really fits the model** </span>
+
+```{r autoplot }
+kad_tissue_data$tl_mm100 <- kad_tissue_data$tl_mm/100
+fit.1 <- glm(num_sex_binary~tl_mm100, data=kad_tissue_data, binomial(link="logit"))
+autoplot(fit.1)
+```
+
+
+<span style="color:green"> **Some of these don't look great, but it is not awful, so we are going to take it.** </span>
+
+<span style="color:green"> **Let's try a binned plot** </span>
+
+
+```{r binned plot}
+x <- predict(fit.1)
+y <- resid(fit.1)
+binnedplot(x, y)
+```
+
+<span style="color:green"> **Final binomial plot** </span>
+
+```{r binomial plot}
+ggplot(kad_tissue_data, aes(tl_mm,num_sex_binary)) +
+  geom_point(color="green4") +
+  geom_smooth(method="glm", method.args=list(family="binomial"(link="logit"))) + 
+  xlab ("Total Length (mm)") +
+  ylab ("Probability of being Male (0) or Female (1)")
+
+```
+
+<span style="color:green"> **Binomial GLM is the best fit for our Kentucky Arrow data set examining the relationship between sex and total length (mm).** </span>
+
+<span style="color:green"> **Now it's time to move onto the next data set!** </span>
+
+### <span style="color:blue"> New Zealand acid mine drainage water chemistry </span> ###
+
+--------------------------------------------------------------
+
+![Acid mine drainage contaminating various ecosystems across the planet.](/Users/alexisculley/Desktop/Analytics/assignment1glm/GLM-Practice/images/amd.jpg){width=50%}
+
+
+<span style="color:blue"> **First, let's import the dataset** </span> 
+```{r Import Dataset 2}
+water_chemistry <- read.csv("~/Desktop/Analytics/assignment1glm/GLM-Practice/data/water_chemistry.csv")
+```
+
+<span style="color:blue"> **Now let's do a raw plot to get the general idea of the data trends** </span> 
+
+```{r Raw Plot}
+ggplot(water_chemistry,aes(Fe,Cond)) +
+  geom_point(color="green4") +
+  geom_smooth(color="blue") +
+  xlab ("Iron") +
+  ylab ("Conductivity") +
+  labs(title="Raw Fit: How does iron effect conductivity?")
+```
+
+<span style="color:blue"> **Let's try to do a Poisson summary to see if that is a fitting model** </span> 
+
+```{r Poisson for Water Chemistry, warning=FALSE}
+pois2 <- glm(Fe~Cond, family= poisson(link=log), data= water_chemistry)
+summary(pois2)
+```
+
+<span style="color:blue"> **The residual deviance and degrees freedom have a large difference, so this is not a good model** </span> 
+
+
+
+```{r eval=FALSE, warning=FALSE, include=FALSE}
+ggplot(water_chemistry, aes(Fe,Cond)) +
+  geom_point() +
+  geom_smooth(method="glm", method.args=list(family="poisson")) + 
+  xlab ("Total Length (mm)") +
+  ylab ("Probability of being Male (0) or Female (1)")
+```
+<span style="color:blue"> **Let's try Gaussian** </span> 
+
+```{r Guassian distribution}
+gaus2 <- glm(Fe~Cond, family= gaussian, data= water_chemistry)
+summary(gaus2)
+```
+
+<span style="color:blue"> **It somehow got worse (there is even a larger difference between the residual deviance and DF)** </span> 
+
+```{r autplot gaussian, eval=FALSE, include=FALSE}
+fit.2 <- glm(Cond~Fe, data=water_chemistry, gaussian())
+autoplot(fit.1)
+```
+
+<span style="color:blue"> **Let's plot Gaussian** </span> 
+
+```{r GLM gaussian}
+ggplot(water_chemistry, aes(Fe,Cond)) +
+  geom_point() +
+  geom_smooth(method="glm", method.args=list(family="gaussian")) + 
+  xlab ("Total Length (mm)") +
+  ylab ("Probability of being Male (0) or Female (1)")
+```
+
+<span style="color:blue"> **The plot for Gaussian does not look awful, but I think we can do better** </span>
+
+<span style="color:blue"> **One more try, this time Gamma GLM** </span>
+
+
+```{r Check Gamma}
+gam <- glm(Fe~Cond, family= Gamma(link="sqrt"), data= water_chemistry)
+summary(gam)
+```
+
+<span style="color:blue"> **Since the difference between residual deviance and DF is at the lowest we have seen for this dataset, this suggests that Gamma square root is the best fit model** </span>
+
+<span style="color:blue"> **last, but not least, let's plot the Gamma square root GLM** </span>
+
+```{r gamma with square root}
+ggplot(water_chemistry, aes(Fe,Cond)) +
+  geom_point() +
+  geom_smooth(method="glm", method.args=list(family="Gamma"(link ="sqrt"))) + 
+  xlab ("Total Length (mm)") +
+  ylab ("Probability of being Male (0) or Female (1)")
+```
+
+<span style="color:blue"> **Looks funky, but it'll do?** </span>
